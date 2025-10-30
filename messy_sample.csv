@@ -1,0 +1,29 @@
+Name,Age,City,Income ,Joining_Date
+Riya,25,Mumbai,55000 ,2022-01-10
+Aarav,28,Delhi,,2021/12/05
+Sneha,,pune,70000,19-07-2021
+Aarav,28,delhi,,2021/12/05
+Karan,31,Mumbai,NaN,2021-11-02
+Riya ,25 ,Mumbai,55000,2022-01-10
+Meera,29,,48000,2021-09-30
+riya,25,mumbai,55000 ,2022-01-10
+Aarav,NaN,Delhi,63000,invalid_date
+,27,Pune,51000,2021-10-11
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
