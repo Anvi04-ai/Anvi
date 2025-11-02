@@ -117,7 +117,7 @@ else:
     except Exception as e:
         st.error(f"Failed to read the file: {e}")
         st.stop()
-       
+
     original_rows = df.shape[0]
     left, right = st.columns((2, 1))
 
