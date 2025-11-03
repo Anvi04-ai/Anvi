@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import datetime
 import json
+import os
 
 # Import helper modules
 from detection.detect import get_missing_counts, count_duplicates, numeric_outlier_counts
@@ -215,6 +216,40 @@ else:
                 df = hybrid_text_clean(df)
                 st.success("✅ Text cleaned successfully with hybrid AI model!")
                 st.dataframe(df.head())
+
+                # ---------------- Custom Dictionary Manager ----------------
+                st.markdown("---")
+                st.subheader("📘 Custom Dictionary")
+
+                st.write("Add or remove words that should **never be auto-corrected** (names, brands, acronyms).")
+
+                custom_path = "custom_words.txt"
+
+                # Load existing words
+                if os.path.exists(custom_path):
+                    with open(custom_path, "r") as f:
+                        custom_words = [w.strip() for w in f.readlines() if w.strip()]
+                else:
+                    custom_words = []
+
+                new_word = st.text_input("➕ Add new word (e.g., Drishti, Infosys, GPT)")
+                if st.button("Add Word to Dictionary"):
+                    if new_word and new_word not in custom_words:
+                        custom_words.append(new_word)
+                        with open(custom_path, "w") as f:
+                            f.write("\n".join(custom_words))
+                        st.success(f"Added '{new_word}' to dictionary.")
+
+                if custom_words:
+                    st.write("Current protected words:")
+                    st.write(", ".join(custom_words))
+
+                    remove_word = st.selectbox("Remove a word", ["(none)"] + custom_words)
+                    if remove_word != "(none)" and st.button("Remove Selected Word"):
+                        custom_words.remove(remove_word)
+                        with open(custom_path, "w") as f:
+                            f.write("\n".join(custom_words))
+                        st.success(f"Removed '{remove_word}' successfully.")
 
         # ---------- Download + Save Prefs ----------
         st.markdown("---")

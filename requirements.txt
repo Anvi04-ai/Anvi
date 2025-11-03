@@ -1,5 +1,8 @@
 streamlit
 pandas
 openpyxl
+fuzzywuzzy
+python-levenshtein
+textblob
 pyspellchecker
 openai
