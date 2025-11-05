@@ -223,7 +223,7 @@ else:
         if st.button("Run Hybrid AI Text Correction"):
             try:
                 for col in text_cols:
-                    df[col] = df[col].astype(str).apply(hybrid_text_clean)
+                    df[col] = df[col].astype(str).apply(hybrid_text_suggestions)
                     if enable_context_ai:
                         df[col] = df[col].apply(gpt_context_correction)
                 st.success("✅ Hybrid AI Text Correction applied successfully!")
