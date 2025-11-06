@@ -26,30 +26,35 @@ def hybrid_text_suggestions(text):
     custom_words = load_custom_words()
     suggestions = []
 
-    # Handle non-string input safely
+    # ✅ Handle non-string input safely
     if not isinstance(text, str):
-        text = str(text)
+        text = str(text) if text is not None else ""
 
     words = text.split()
 
     for word in words:
         clean = word.strip(".,!?;:").lower()
 
-        # Skip protected words (emails, numbers, or custom names)
-        if clean.isdigit() or "@" in clean or clean in custom_words:
+        # ✅ Skip special or custom words
+        if (
+            clean.isdigit() or "@" in clean
+            or clean in custom_words
+            or word.istitle()  # proper noun (Drishti, Mahendrasingh, etc.)
+            or word.isupper()  # acronyms like USA, IIT
+        ):
             suggestions.append((word, word, 1.0))
             continue
 
-        # If word is already valid
+        # ✅ Already a known correct word
         if clean in spell:
             suggestions.append((word, word, 1.0))
             continue
 
-        # Use SpellChecker suggestion
+        # ✅ Use SpellChecker suggestion
         suggestion = spell.correction(clean)
         score = fuzz.ratio(clean, suggestion) / 100 if suggestion else 0
 
-        # Only correct if high confidence
+        # ✅ Only correct if high confidence
         if suggestion and score >= 0.7:
             suggestions.append((word, suggestion, score))
         else:
