@@ -4,8 +4,9 @@ import numpy as np
 import datetime
 import json
 import os
+import re
 
-# Import helper modules
+# --- Import helper modules ---
 from detection.detect import get_missing_counts, count_duplicates, numeric_outlier_counts
 from fixes.apply_fixes import (
     fill_missing_values,
@@ -18,10 +19,66 @@ from fixes.apply_fixes import (
 from utils.storage import save_prefs, load_prefs, append_session, load_sessions
 
 # --- Import AI modules ---
-from ai.autocorrect_hybrid import hybrid_text_suggestions
-from ai.context_ai_correct import safe_context_ai_clean
+from ai.autocorrect_hybrid import hybrid_text_clean, hybrid_text_suggestions
 
-# Optional AI-based suggester
+# -------------------------------------------------
+# 🔧 GPT + Hybrid Context Correction (Merged Logic)
+# -------------------------------------------------
+def gpt_context_correction(text):
+    """Light GPT-style context-aware correction (safe)."""
+    if not isinstance(text, str):
+        text = str(text) if text is not None else ""
+    text = text.strip()
+
+    replacements = {
+        "counrty": "country",
+        "adress": "address",
+        "imndfia": "India",
+        "rooll": "roll",
+        "rool": "roll",
+        "correctionn": "correction",
+        "hte": "the",
+        "teh": "the",
+        "recieve": "receive",
+        "adresss": "address",
+        "studnt": "student",
+        "collge": "college",
+        "technlogy": "technology",
+        "enviroment": "environment",
+        "reserch": "research",
+        "drishti": "Drishti"
+    }
+
+    def correct_word(word):
+        clean_word = re.sub(r'[^\w\s]', '', word.lower())
+        if clean_word in replacements:
+            corrected = replacements[clean_word]
+            if word.istitle():
+                corrected = corrected.capitalize()
+            elif word.isupper():
+                corrected = corrected.upper()
+            return corrected
+        return word
+
+    words = text.split()
+    corrected_words = [correct_word(w) for w in words]
+    corrected_text = " ".join(corrected_words)
+    corrected_text = re.sub(r'\s+', ' ', corrected_text).strip()
+    return corrected_text
+
+
+def safe_context_ai_clean(df):
+    """Safely run hybrid + GPT context-aware cleaning on all text columns."""
+    try:
+        for col in df.select_dtypes(include=['object', 'string']).columns:
+            df[col] = df[col].astype(str).fillna("")
+            df[col] = df[col].apply(lambda x: gpt_context_correction(hybrid_text_clean(x)))
+        return df
+    except Exception as e:
+        print(f"❌ Context AI correction failed: {e}")
+        return df
+
+# --- Optional AI suggester ---
 try:
     from suggestions.suggest import suggest_issues
 except Exception:
@@ -56,9 +113,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Header
 st.markdown("<h1 style='color:#0f172a'>🧠 AI Data Cleaning Console</h1>", unsafe_allow_html=True)
-st.markdown("Upload a CSV or Excel file and let the AI detect issues, clean data, and suggest fixes automatically.")
+st.markdown("Upload a CSV or Excel file and let AI detect, clean, and suggest fixes automatically.")
 
 # Sidebar
 with st.sidebar:
@@ -88,7 +144,6 @@ with st.sidebar:
 if not uploaded_file:
     st.info("⬆️ Please upload a CSV or Excel file to begin.")
 else:
-    # --- File Reading ---
     try:
         if uploaded_file.name.endswith(".csv"):
             df = pd.read_csv(uploaded_file)
@@ -96,13 +151,13 @@ else:
             import openpyxl
             df = pd.read_excel(uploaded_file)
     except Exception as e:
-        st.error(f"Failed to read the file: {e}")
+        st.error(f"Failed to read file: {e}")
         st.stop()
 
     original_rows = df.shape[0]
     left, right = st.columns((2, 1))
 
-    # ---------- Left Panel: Detection ----------
+    # --- Left Panel ---
     with left:
         st.subheader("📊 Data Preview")
         st.dataframe(df.head())
@@ -125,7 +180,7 @@ else:
         else:
             st.write("No major numeric outliers detected.")
 
-    # ---------- Right Panel: Fixes ----------
+    # --- Right Panel ---
     with right:
         st.subheader("💡 AI Suggestions")
         suggestions = suggest_issues(df, top_n=5)
@@ -145,10 +200,7 @@ else:
                             st.success(f"Parsed {s['column']} to datetime.")
                         except Exception as e:
                             st.error(f"Failed to parse: {e}")
-                    else:
-                        st.warning("Custom handling required for this issue.")
 
-        # ---------- Auto Cleaning ----------
         st.markdown("---")
         st.subheader("🧩 Auto Cleaning")
         strategy = st.selectbox("Missing value strategy", ["mean", "median", "zero"], index=0)
@@ -171,13 +223,12 @@ else:
             except Exception as e:
                 st.error(f"Cleaning failed: {e}")
 
-        # ---------- Text Fixes ----------
         st.markdown("---")
         st.subheader("🪄 Text Formatting Fixes")
 
         text_cols = df.select_dtypes(include=['object', 'string']).columns.tolist()
         if text_cols:
-            selected_cols = st.multiselect("Select columns to capitalize (or leave empty for all):", text_cols)
+            selected_cols = st.multiselect("Select columns to capitalize:", text_cols)
             if st.button("Fix Capitalization"):
                 try:
                     df = normalize_text_case(df, columns=selected_cols if selected_cols else None)
@@ -185,36 +236,24 @@ else:
                     st.dataframe(df.head())
                 except Exception as e:
                     st.error(f"Capitalization fix failed: {e}")
-        else:
-            st.info("No text columns found for capitalization.")
 
-        # ---------- Fuzzy Normalization ----------
         st.markdown("---")
         st.subheader("🧠 Fuzzy Normalization")
 
         if text_cols:
-            col_to_dedupe = st.selectbox(
-                "Select a column to fuzzy-normalize",
-                options=["(none)"] + text_cols,
-                key="fuzzy_select"
-            )
+            col_to_dedupe = st.selectbox("Select a column to fuzzy-normalize", ["(none)"] + text_cols)
+            if col_to_dedupe != "(none)" and st.button(f"Apply fuzzy dedupe to {col_to_dedupe}"):
+                df = fuzzy_dedupe_by_column(df, col_to_dedupe, threshold=88)
+                df = normalize_text_case(df, [col_to_dedupe])
+                st.success(f"Fuzzy normalization + capitalization applied on '{col_to_dedupe}'.")
 
-            if col_to_dedupe != "(none)":
-                if st.button(f"Apply fuzzy dedupe to {col_to_dedupe}", key="fuzzy_single"):
-                    df = fuzzy_dedupe_by_column(df, col_to_dedupe, threshold=88)
-                    df = normalize_text_case(df, [col_to_dedupe])
-                    st.success(f"Fuzzy normalization + capitalization applied on '{col_to_dedupe}'.")
-
-            if st.checkbox("Apply fuzzy normalization to ALL text columns", key="fuzzy_all_checkbox"):
-                if st.button("Run fuzzy normalization (All Columns)", key="fuzzy_all_button"):
+            if st.checkbox("Apply fuzzy normalization to ALL text columns"):
+                if st.button("Run fuzzy normalization (All Columns)"):
                     for col in text_cols:
                         df = fuzzy_dedupe_by_column(df, col, threshold=88)
                     df = normalize_text_case(df, text_cols)
                     st.success("Fuzzy normalization + capitalization applied to all text columns.")
-        else:
-            st.info("No text columns found for fuzzy normalization.")
 
-        # ---------- Hybrid + GPT Correction ----------
         st.markdown("---")
         st.subheader("🤖 AI Text Cleanup")
 
@@ -222,16 +261,16 @@ else:
 
         if st.button("Run Hybrid AI Text Correction"):
             try:
-                for col in text_cols:
-                    df[col] = df[col].astype(str).apply(hybrid_text_suggestions)
-                    if enable_context_ai:
-                        df[col] = df[col].apply(gpt_context_correction)
+                if enable_context_ai:
+                    df = safe_context_ai_clean(df)
+                else:
+                    for col in text_cols:
+                        df[col] = df[col].astype(str).apply(hybrid_text_clean)
                 st.success("✅ Hybrid AI Text Correction applied successfully!")
                 st.dataframe(df.head())
             except Exception as e:
                 st.error(f"AI text correction failed: {e}")
 
-        # ---------- Download + Save Prefs ----------
         st.markdown("---")
         csv_bytes = df.to_csv(index=False).encode("utf-8")
         st.download_button("⬇️ Download Cleaned CSV", csv_bytes, file_name="cleaned_data.csv", mime="text/csv")
@@ -240,7 +279,6 @@ else:
             save_prefs({"missing_strategy": strategy})
             st.success("Preferences saved.")
 
-    # ---------- Summary + Session ----------
     st.markdown("---")
     if st.button("Save current session to history"):
         session = {
