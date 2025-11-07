@@ -10,14 +10,7 @@ from langdetect import detect, DetectorFactory
 DetectorFactory.seed = 0
 
 import spacy
-
-try:
-    nlp = spacy.load("en_core_web_sm")
-except OSError:
-   
-    from spacy.cli import download
-    download("en_core_web_sm")
-    nlp = spacy.load("en_core_web_sm")
+nlp = spacy.load("en_core_web_sm")
 
 from detection.detect import get_missing_counts, count_duplicates, numeric_outlier_counts
 from fixes.apply_fixes import (
