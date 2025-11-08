@@ -27,6 +27,14 @@ from ai.context_ai_correct import safe_context_ai_clean
 
 from fuzzywuzzy import process
 
+def protect_identifier_columns(df):
+    """Ensure identifier columns like Roll No, ID, etc. remain as strings."""
+    protected_keywords = ["roll", "id", "number", "code", "reg", "student"]
+    for col in df.columns:
+        if any(keyword in col.lower() for keyword in protected_keywords):
+            df[col] = df[col].astype(str)
+    return df
+
 # ✅ Initialize Streamlit
 st.set_page_config(page_title="AI Data Cleaning", page_icon="🤖", layout="wide")
 
@@ -55,9 +63,12 @@ if uploaded_file is not None:
     # --- Handle CSV or Excel ---
     file_name = uploaded_file.name.lower()
     if file_name.endswith(".csv"):
-        df = pd.read_csv(uploaded_file)
+        df = pd.read_csv(uploaded_file, dtype=str)
     else:
-        df = pd.read_excel(uploaded_file)
+        df = pd.read_excel(uploaded_file, dtype=str)
+
+    # 🔒 Protect important columns
+    df = protect_identifier_columns(df)
 
     st.write("### Original Data:")
     st.dataframe(df.head())
