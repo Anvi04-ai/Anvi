@@ -90,6 +90,11 @@ if uploaded_file is not None:
 
     st.success("✅ Basic cleaning complete!")
 
+    if st.button("🔄 Apply AI + Fuzzy Name Correction"):
+        df = safe_context_ai_clean(df)
+        st.success("✅ AI corrections applied successfully!")
+        st.dataframe(df.head())
+
     # 🔹 Apply Fuzzy + AI Correction
     for col in df.select_dtypes(include='object').columns:
         reference_data = df[col].dropna().unique().tolist()
