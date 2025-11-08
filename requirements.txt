@@ -8,4 +8,5 @@ python-Levenshtein
 pyspellchecker
 openpyxl
 python-dateutil
+openai>=1.0.0
 
