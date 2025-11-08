@@ -3,8 +3,9 @@ pandas
 numpy
 langdetect
 textblob
-fuzzywuzzy[speedup]
-python-Levenshtein==0.27.3
+fuzzywuzzy
+python-Levenshtein
 pyspellchecker
+openpyxl
 
 
