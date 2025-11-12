@@ -1,16 +1,41 @@
-# utils/cleaning.py
 import os, json, time, requests
+import pandas as pd
 from rapidfuzz import process, fuzz
 
-BASE_DIR = os.path.dirname(os.path.dirname(__file__))  # adjust if needed
-MAPPINGS_PATH = os.path.join(BASE_DIR, "data", "user_mappings.json")
-WHITELIST_PATH = os.path.join(BASE_DIR, "data", "whitelist.txt")
-CHANGELOG_PATH = os.path.join(BASE_DIR, "data", "change_log.json")
+# ------------------------------------------------------------
+# 📂 PATHS AND GLOBALS
+# ------------------------------------------------------------
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+
+MAPPINGS_PATH = os.path.join(DATA_DIR, "user_mappings.json")
+WHITELIST_PATH = os.path.join(DATA_DIR, "whitelist.txt")
+CHANGELOG_PATH = os.path.join(DATA_DIR, "change_log.json")
 
 PDL_API_KEY = os.environ.get("PDL_API_KEY", "<PUT_YOUR_KEY_HERE>")
-PDL_URL = "https://api.peopledatalabs.com/cleaner"  # example endpoint — adapt to actual
+PDL_URL = "https://api.peopledatalabs.com/cleaner"
 
-# ---------------- storage helpers ----------------
+# ------------------------------------------------------------
+# 📚 LOAD GLOBAL REFERENCE DATASETS
+# ------------------------------------------------------------
+def load_reference_data():
+    names, cities, countries = [], [], []
+    try:
+        names = pd.read_csv(os.path.join(DATA_DIR, "name_gender.csv"))["name"].dropna().astype(str).tolist()
+    except: pass
+    try:
+        cities = pd.read_csv(os.path.join(DATA_DIR, "world_cities.csv"))["city"].dropna().astype(str).tolist()
+    except: pass
+    try:
+        countries = pd.read_csv(os.path.join(DATA_DIR, "countries.csv"))["country"].dropna().astype(str).tolist()
+    except: pass
+    return names, cities, countries
+
+KNOWN_NAMES, KNOWN_CITIES, KNOWN_COUNTRIES = load_reference_data()
+
+# ------------------------------------------------------------
+# ⚙️ JSON & STORAGE HELPERS
+# ------------------------------------------------------------
 def load_json(path, default):
     if os.path.exists(path):
         try:
@@ -28,7 +53,9 @@ def append_changelog(entry):
     log.append(entry)
     save_json(CHANGELOG_PATH, log)
 
-# ---------------- whitelist / mappings ----------------
+# ------------------------------------------------------------
+# 🧾 USER MAPPINGS & WHITELIST
+# ------------------------------------------------------------
 def load_whitelist():
     if not os.path.exists(WHITELIST_PATH):
         return set()
@@ -48,39 +75,30 @@ def save_user_mapping(src, target):
     m[src.lower()] = target
     save_json(MAPPINGS_PATH, m)
 
-# ---------------- PDL call (example) ----------------
+# ------------------------------------------------------------
+# 🌍 PEOPLE DATA LABS (AI NORMALIZER)
+# ------------------------------------------------------------
 def call_pdl_clean(value, field_hint=None):
-    """
-    Call PeopleDataLabs Cleaner API (example). Returns normalized string or None.
-    field_hint can be 'city','country','company' to improve results.
-    """
     if value is None:
         return None
-    params = {
-        "api_key": PDL_API_KEY,
-        "value": str(value)
-    }
+    params = {"api_key": PDL_API_KEY, "value": str(value)}
     if field_hint:
         params["type"] = field_hint
     try:
         r = requests.get(PDL_URL, params=params, timeout=6)
         r.raise_for_status()
         data = r.json()
-        # adapt to actual PDL response:
-        # e.g. data['cleaned'] or data['result']['value']
         normalized = data.get("cleaned") or data.get("result") or data.get("value")
         if isinstance(normalized, dict):
-            # if the API returns structured entity, pick human-friendly label
             return normalized.get("name") or normalized.get("value")
         return normalized
-    except Exception as e:
-        # network or API error — fail silently (we will fallback to fuzzy)
-        # print("PDL error", e)
+    except:
         return None
 
-# ---------------- fuzzy fallback ----------------
-def fuzzy_fallback(value, candidates, threshold=85):
-    """Return best candidate or None"""
+# ------------------------------------------------------------
+# 🔍 FUZZY MATCHING
+# ------------------------------------------------------------
+def fuzzy_fallback(value, candidates, threshold=88):
     if not value or not candidates:
         return None
     best = process.extractOne(str(value), candidates, scorer=fuzz.WRatio)
@@ -88,53 +106,85 @@ def fuzzy_fallback(value, candidates, threshold=85):
         return best[0]
     return None
 
-# ---------------- identifier detection ----------------
-import pandas as pd
+# ------------------------------------------------------------
+# 🧠 IDENTIFIER DETECTION (protect roll no, phone, etc.)
+# ------------------------------------------------------------
 def is_identifier_column(df, col):
-    """
-    Simple heuristics to detect roll numbers / IDs / phone numbers which must be protected:
-    - mostly numeric
-    - short length (<12) and no alpha
-    - column name contains 'roll','id','phone','adhar','emp'
-    """
     name = col.lower()
     keywords = ["roll", "id", "emp", "phone", "mobile", "adhar", "aadhar", "ssn"]
     if any(k in name for k in keywords):
         return True
     s = df[col].dropna().astype(str)
-    # percent numeric
     numeric_frac = (s.str.isnumeric()).mean() if len(s)>0 else 0
     avg_len = s.str.len().mean() if len(s)>0 else 0
-    if numeric_frac > 0.8 and avg_len < 12:
-        return True
-    return False
+    return numeric_frac > 0.8 and avg_len < 12
 
-# ---------------- suggestion pipeline ----------------
-def suggest_corrections_for_value(value, col_hint=None, reference_list=None):
-    """
-    Returns tuple (suggestion, source)
-    source in {"user", "pdl", "fuzzy", None}
-    """
+# ------------------------------------------------------------
+# 🧩 HYBRID AI + CONTEXT CORRECTION PIPELINE
+# ------------------------------------------------------------
+def suggest_corrections_for_value(value, col_hint=None):
     v = "" if value is None else str(value).strip()
     if v == "":
         return None, None
 
-    # 1) user mapping
+    # 1️⃣ User-defined mapping
     mappings = load_user_mappings()
     if v.lower() in mappings:
         return mappings[v.lower()], "user"
 
-    # 2) PDL normalization (best for city/country/company)
-    if col_hint in ("country","city","company","org","company_name"):
+    # 2️⃣ PDL normalization
+    if col_hint in ("country", "city", "company", "organization"):
         p = call_pdl_clean(v, field_hint=col_hint)
         if p and p.lower() != v.lower():
             return p, "pdl"
 
-    # 3) fuzzy fallback against reference list (if provided)
-    if reference_list:
-        f = fuzzy_fallback(v, reference_list)
-        if f and f.lower() != v.lower():
-            return f, "fuzzy"
+    # 3️⃣ Fuzzy fallback
+    ref_list = []
+    if col_hint in ("name", "person", "student"):
+        ref_list = KNOWN_NAMES
+    elif col_hint == "city":
+        ref_list = KNOWN_CITIES
+    elif col_hint == "country":
+        ref_list = KNOWN_COUNTRIES
 
-    # nothing
+    f = fuzzy_fallback(v, ref_list)
+    if f and f.lower() != v.lower():
+        return f, "fuzzy"
+
     return None, None
+
+# ------------------------------------------------------------
+# 🧼 MAIN CLEANING FUNCTION
+# ------------------------------------------------------------
+def clean_dataframe(df):
+    df = df.copy()
+    whitelist = load_whitelist()
+
+    for col in df.select_dtypes(include="object").columns:
+        if is_identifier_column(df, col):
+            continue
+
+        corrected = []
+        for val in df[col]:
+            val_str = str(val).strip() if val is not None else ""
+            if val_str.lower() in whitelist:
+                corrected.append(val)
+                continue
+
+            suggestion, source = suggest_corrections_for_value(val_str, col_hint=col.lower())
+
+            if suggestion and suggestion != val_str:
+                append_changelog({
+                    "column": col,
+                    "original": val_str,
+                    "corrected": suggestion,
+                    "method": source,
+                    "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+                })
+                corrected.append(suggestion)
+            else:
+                corrected.append(val_str)
+
+        df[col] = corrected
+
+    return df

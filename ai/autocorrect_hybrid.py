@@ -39,8 +39,8 @@ def hybrid_text_suggestions(text):
         if (
             clean.isdigit() or "@" in clean
             or clean in custom_words
-            or word.istitle()  # proper noun (Drishti, Mahendrasingh, etc.)
-            or word.isupper()  # acronyms like USA, IIT
+            or word.istitle()
+            or word.isupper()
         ):
             suggestions.append((word, word, 1.0))
             continue

@@ -1,12 +1,6 @@
 streamlit==1.51.0
 pandas
-numpy
-langdetect
-textblob
-fuzzywuzzy
-python-Levenshtein
-pyspellchecker
-openpyxl
-python-dateutil
-openai>=1.0.0
+requests
+rapidfuzz
+python-dotenv
 
