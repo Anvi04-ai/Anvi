@@ -3,4 +3,5 @@ pandas
 requests
 rapidfuzz
 python-dotenv
+langdetect
 
