@@ -8,4 +8,5 @@ python-Levenshtein
 openpyxl
 Unidecode
 spacy
-HumanName
+gender-guesser
+nameparser
