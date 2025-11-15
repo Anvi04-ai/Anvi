@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 
-# Import the real function you have
+
 from cleaning import clean_record
 
 
