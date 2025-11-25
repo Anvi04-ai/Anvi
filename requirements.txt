@@ -1,4 +1,3 @@
-
 pandas>=1.5
 pyarrow==21.0.0
 streamlit>=1.18,<1.52
@@ -9,3 +8,4 @@ python-dateutil
 nltk
 joblib
 types-pytz
+openpyxl
