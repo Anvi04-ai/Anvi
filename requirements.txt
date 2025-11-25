@@ -1,5 +1,11 @@
-streamlit==1.51.0
-pandas>=2.0
-openpyxl
-python-magic; platform_system=="Linux"
-python-Levenshtein==0.20.9  # optional, speeds up fuzzy matching (we use difflib fallback)
+
+pandas>=1.5
+pyarrow==21.0.0
+streamlit>=1.18,<1.52
+rapidfuzz>=2.15
+numpy>=2.3.5
+scikit-learn
+python-dateutil
+nltk
+joblib
+types-pytz

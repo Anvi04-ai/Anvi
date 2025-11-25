@@ -1,20 +1,36 @@
 import pandas as pd
+from Levenshtein import ratio
 
-def detect_issues(df: pd.DataFrame) -> dict:
-    issues = {}
 
-    # Detect empty cells
-    empty = df.isnull().sum().sum()
-    if empty > 0:
-        issues['empty_cells'] = int(empty)
+def detect_exact_duplicates(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Return exact duplicate rows.
+    """
+    df = df.copy()
+    duplicates = df[df.duplicated(keep=False)]
+    return duplicates
 
-    # Detect numeric columns containing text
-    text_in_numeric = []
-    for col in df.columns:
-        if pd.api.types.is_numeric_dtype(df[col]):
-            if df[col].astype(str).str.contains('[A-Za-z]').any():
-                text_in_numeric.append(col)
-    if text_in_numeric:
-        issues['text_in_numeric_columns'] = text_in_numeric
 
-    return issues
+def detect_fuzzy_duplicates(df: pd.DataFrame, threshold: float = 0.85) -> pd.DataFrame:
+    """
+    Detect fuzzy duplicates row-by-row using string similarity.
+    Suitable for small–medium size datasets.
+    """
+    df = df.copy()
+    fuzzy_matches = []
+
+    for i in range(len(df)):
+        for j in range(i + 1, len(df)):
+            row1 = " ".join(df.iloc[i].astype(str))
+            row2 = " ".join(df.iloc[j].astype(str))
+
+            sim = ratio(row1, row2)
+
+            if sim >= threshold:
+                fuzzy_matches.append({
+                    "row_i": i,
+                    "row_j": j,
+                    "similarity": sim
+                })
+
+    return pd.DataFrame(fuzzy_matches)
