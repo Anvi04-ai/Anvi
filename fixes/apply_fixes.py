@@ -5,6 +5,73 @@ from rapidfuzz import process, fuzz
 from nameparser import HumanName
 import logging
 from typing import Optional, Dict, List
+import pandas as pd
+import os
+
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))   # root folder
+
+# Load all dictionaries
+countries_df = pd.read_csv(os.path.join(BASE_DIR, "data/countries.csv"))
+names_df = pd.read_csv(os.path.join(BASE_DIR, "data/name_gender.csv"))
+cities_df = pd.read_csv(os.path.join(BASE_DIR, "data/world_cities.csv"))
+
+# Convert to Python dictionaries for fast lookup
+COUNTRY_LIST = set(countries_df["C1"].str.lower().str.strip())
+
+NAME_LIST = set(names_df["name"].str.lower().str.strip())
+
+CITY_LIST = set(cities_df["city"].str.lower().str.strip())
+
+def apply_fixes(df):
+    df = df.copy()
+
+    log_messages = []
+
+    def clean_text(value):
+        if not isinstance(value, str):
+            return value
+
+        original = value.strip()
+        low = original.lower()
+
+        # Capitalization
+        capitalized = original.title()
+
+        # Country correction
+        if low in COUNTRY_LIST:
+            log_messages.append(f"Country corrected: {original} → {capitalized}")
+            return capitalized
+
+        # Name correction
+        if low in NAME_LIST:
+            log_messages.append(f"Name corrected: {original} → {capitalized}")
+            return capitalized
+
+        # City correction
+        if low in CITY_LIST:
+            log_messages.append(f"City corrected: {original} → {capitalized}")
+            return capitalized
+
+        # If unknown → keep title case
+        if original != capitalized:
+            log_messages.append(f"Capitalized: {original} → {capitalized}")
+
+        return capitalized
+
+    # Apply to whole DF
+    for col in df.columns:
+        if df[col].dtype == 'object':
+            df[col] = df[col].astype(str).apply(clean_text)
+
+    # Detect duplicates
+    duplicates = df[df.duplicated(keep=False)]
+
+    return {
+        "cleaned_df": df,
+        "duplicates_df": duplicates,
+        "log": log_messages
+    }
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
