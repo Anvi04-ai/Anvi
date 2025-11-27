@@ -12,3 +12,5 @@ openpyxl
 thefuzz
 python-levenshtein
 types-pytz
+pycountry
+nameparser
