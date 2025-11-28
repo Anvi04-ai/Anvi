@@ -7,9 +7,10 @@ from rapidfuzz import process, fuzz
 
 # ---------- Config: paths to your CSVs (relative to package root) ----------
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))  # project root / fixes/..
-COUNTRIES_PATH = os.path.join(BASE_DIR, "data", "countries.csv")
-NAMES_PATH = os.path.join(BASE_DIR, "data", "name_gender.csv")
-CITIES_PATH = os.path.join(BASE_DIR, "data", "world_cities.csv")
+COUNTRIES_PATH = os.path.join(os.path.dirname(__file__), "data", "countries.csv")
+NAMES_PATH = os.path.join(os.path.dirname(__file__), "data", "name_gender.csv")
+CITIES_PATH = os.path.join(os.path.dirname(__file__), "data", "world_cities.csv")
+
 
 # ---------- Helpers to load reference lists robustly ----------
 def _load_csv_safe(path: str) -> Optional[pd.DataFrame]:
