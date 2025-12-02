@@ -9,7 +9,6 @@ Scalable Streamlit app for AI-powered data prep.
 
 ## Features
 - Upload & profile data
-- AI suggestions via PandasAI
 - Apply fixes with viz
 - Error logs in utils/logger.py
 
