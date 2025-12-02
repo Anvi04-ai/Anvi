@@ -1,0 +1,1 @@
+2025-12-02 21:51:33,519 - utils.logger - ERROR - Load error: 'bytes' object has no attribute 'name'

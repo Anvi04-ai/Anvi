@@ -50,8 +50,18 @@ if uploaded_files:
         with col2:
             profile = profile_data(df)
             st.subheader("Data Profile")
-            st.json({k: v for k, v in profile.items() if isinstance(v, (int, float, str)) or len(v) < 10})
+        # Display profile safely
+        st.subheader("Data Profile")
+        safe_profile = {}
+        for k, v in profile.items():
+            if hasattr(v, 'item'):  # numpy int64, float64, etc.
+                safe_profile[k] = v.item()
+            elif isinstance(v, (list, dict, tuple)) and len(v) > 10:
+                safe_profile[k] = f"{type(v).__name__} with {len(v)} items (truncated)"
+            else:
+                safe_profile[k] = v
 
+        st.json(safe_profile)
         # AI Suggestions
         if st.button("🔮 Get AI Cleaning Suggestions"):
             with st.spinner("Analyzing with AI..."):
