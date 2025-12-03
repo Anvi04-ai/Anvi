@@ -1,1 +1,19 @@
 2025-12-02 21:51:33,519 - utils.logger - ERROR - Load error: 'bytes' object has no attribute 'name'
+2025-12-02 22:31:29,898 - utils.logger - ERROR - AI failed: 
+
+You tried to access openai.ChatCompletion, but this is no longer supported in openai>=1.0.0 - see the README at https://github.com/openai/openai-python for the API.
+
+You can run `openai migrate` to automatically upgrade your codebase to use the 1.0.0 interface. 
+
+Alternatively, you can pin your installation to the old version, e.g. `pip install openai==0.28`
+
+A detailed migration guide is available here: https://github.com/openai/openai-python/discussions/742
+
+2025-12-02 22:31:38,084 - utils.logger - INFO - Applied: 1. Check for missing values
+2025-12-02 22:31:38,096 - utils.logger - INFO - Applied: 2. Remove duplicates
+2025-12-02 22:31:38,096 - utils.logger - INFO - Applied: 3. Fix data types
+2025-12-02 22:31:41,148 - utils.logger - INFO - Export successful
+2025-12-02 22:35:27,728 - utils.logger - INFO - Applied: 1. Check for missing values
+2025-12-02 22:35:27,736 - utils.logger - INFO - Applied: 2. Remove duplicates
+2025-12-02 22:35:27,737 - utils.logger - INFO - Applied: 3. Fix data types
+2025-12-02 22:35:27,791 - utils.logger - INFO - Export successful

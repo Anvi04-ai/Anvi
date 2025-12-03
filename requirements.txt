@@ -1,7 +1,8 @@
-streamlit==1.38.0
-pandas==2.2.2
-openai==1.51.0
-scikit-learn==1.5.2
-plotly==5.24.1
-python-dotenv==1.0.1
-rapidfuzz==3.9.0
+fastapi
+uvicorn
+pandas
+fuzzywuzzy
+python-Levenshtein
+textblob
+spacy
+streamlit
