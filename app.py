@@ -8,7 +8,7 @@ st.title("✨ CleanChain AI — Smart B2B Data Cleaner")
 
 # Allow both CSV and Excel
 uploaded_file = st.file_uploader(
-    "📤 Upload your data file (CSV or Excel)",
+    "📤 Upload your data file (CSV or Excel)", 
     type=["csv", "xlsx", "xls"]
 )
 
