@@ -26,22 +26,30 @@ def get_sample_companies():
         "Tesla", "Meta", "Netflix", "Samsung"
     ]
 
-# =================================
-# 🤖 AI NAME CORRECTION ENGINE
-# =================================
+    from difflib import SequenceMatcher
 
-# Load a small, fast embedding model (works on CPU)
-model = SentenceTransformer("all-MiniLM-L6-v2")
+    def ai_correct_name(name, reference_list):
+        """
+        Corrects a name based on fuzzy similarity to reference list.
+        Returns (best_match, confidence_score)
+        """
+        if not isinstance(name, str) or not name.strip():
+            return name, 0.0
 
-def ai_correct_name(name, reference_list, threshold=0.75):
-    """
-    Correct a given name using semantic similarity (embeddings).
-    name: the input string to correct
-    reference_list: list of valid names (countries, cities, etc.)
-    threshold: minimum similarity (0–1) for correction
-    """
-    if not isinstance(name, str) or not name.strip():
-        return name
+        name_clean = name.strip().title()
+        best_match = name_clean
+        best_score = 0.0
+
+        for ref in reference_list:
+            score = SequenceMatcher(None, name_clean.lower(), ref.lower()).ratio()
+            if score > best_score:
+                best_match = ref
+                best_score = score
+
+        # Only correct if we're confident enough (threshold = 0.8)
+        if best_score < 0.8:
+            return name_clean, best_score
+        return best_match, best_score
 
     # Encode input and references into embeddings
     emb_name = model.encode(name, convert_to_tensor=True)

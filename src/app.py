@@ -43,7 +43,23 @@ if uploaded_file:
 
             correction_log = []  # store results
 
+
             def correct_with_log(x, ref_list, col_name):
+                if not isinstance(x, str) or not x.strip():
+                    return x
+
+                corrected, confidence = ai_correct_name(x, ref_list)
+                changed = corrected != x
+
+                if changed:
+                    correction_log.append({
+                        "Column": col_name,
+                        "Original": x,
+                        "Corrected": corrected,
+                        "Confidence": round(confidence * 100, 2)
+                    })
+                return corrected
+
                 if not isinstance(x, str) or not x.strip():
                     return x
                 corrected = ai_correct_name(x, ref_list)
@@ -71,7 +87,11 @@ if uploaded_file:
             # Show corrections made
             if correction_log:
                 st.write("### 🤖 Corrections Applied")
-                st.dataframe(pd.DataFrame(correction_log))
+                corrections_df = pd.DataFrame(correction_log)
+                st.dataframe(corrections_df.style.background_gradient(
+                    subset=["Confidence"], cmap="YlGn"
+                ))
+
             else:
                 st.info("No AI corrections were required — all names already valid!")
 
