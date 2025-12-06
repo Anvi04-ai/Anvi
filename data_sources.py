@@ -3,6 +3,31 @@ import geonamescache
 import pandas as pd
 from sentence_transformers import SentenceTransformer, util
 import torch
+from difflib import SequenceMatcher
+
+def ai_correct_name(name, reference_list):
+    """
+    Corrects a name based on fuzzy similarity to a reference list.
+    Returns (best_match, confidence_score)
+    """
+    if not isinstance(name, str) or not name.strip():
+        return name, 0.0
+
+    name_clean = name.strip().title()
+    best_match = name_clean
+    best_score = 0.0
+
+    for ref in reference_list:
+        score = SequenceMatcher(None, name_clean.lower(), ref.lower()).ratio()
+        if score > best_score:
+            best_match = ref
+            best_score = score
+
+    # Only correct if confidence >= 0.8
+    if best_score < 0.8:
+        return name_clean, best_score
+    return best_match, best_score
+
 
 # ============================
 # 🌍 GLOBAL REFERENCE LOADERS
@@ -91,3 +116,5 @@ if __name__ == "__main__":
     print("Unted Sttes ➜", ai_correct_name("Unted Sttes", countries))
     print("Nwe Yrok ➜", ai_correct_name("Nwe Yrok", cities))
     print("Microsfot ➜", ai_correct_name("Microsfot", companies))
+
+
