@@ -1,120 +1,32 @@
+from sentence_transformers import SentenceTransformer, util
 import pycountry
 import geonamescache
-import pandas as pd
-from sentence_transformers import SentenceTransformer, util
-import torch
-from difflib import SequenceMatcher
 
-def ai_correct_name(name, reference_list):
+# Load model once
+model = SentenceTransformer("all-MiniLM-L6-v2")
+
+# Load data
+gc = geonamescache.GeonamesCache()
+ALL_COUNTRIES = [c.name for c in pycountry.countries]
+ALL_CITIES = [c["name"] for c in gc.get_cities().values()]
+
+def ai_correct_name(name: str, ref_list, threshold=0.7):
     """
-    Corrects a name based on fuzzy similarity to a reference list.
-    Returns (best_match, confidence_score)
+    Correct a string using semantic similarity within its domain (cities, countries, etc.)
     """
     if not isinstance(name, str) or not name.strip():
-        return name, 0.0
+        return name, 1.0
 
-    name_clean = name.strip().title()
-    best_match = name_clean
-    best_score = 0.0
+    name = name.strip().title()
+    name_emb = model.encode(name, convert_to_tensor=True)
+    ref_embs = model.encode(ref_list, convert_to_tensor=True)
 
-    for ref in reference_list:
-        score = SequenceMatcher(None, name_clean.lower(), ref.lower()).ratio()
-        if score > best_score:
-            best_match = ref
-            best_score = score
+    # Compute similarity
+    cosine_scores = util.cos_sim(name_emb, ref_embs)[0]
+    best_idx = cosine_scores.argmax().item()
+    best_score = cosine_scores[best_idx].item()
 
-    # Only correct if confidence >= 0.8
-    if best_score < 0.8:
-        return name_clean, best_score
-    return best_match, best_score
-
-
-# ============================
-# 🌍 GLOBAL REFERENCE LOADERS
-# ============================
-
-# 🌍 COUNTRIES
-def get_all_countries():
-    countries = [country.name for country in pycountry.countries]
-    return sorted(countries)
-
-# 🏙 CITIES
-def get_all_cities():
-    gc = geonamescache.GeonamesCache()
-    cities = [city_data["name"] for city_data in gc.get_cities().values()]
-    return sorted(set(cities))
-
-# 🏢 COMPANIES (sample list; can later link OpenCorporates API)
-def get_sample_companies():
-    return [
-        "Google", "Microsoft", "Amazon", "Apple", "IBM", "Intel",
-        "Tesla", "Meta", "Netflix", "Samsung"
-    ]
-
-    from difflib import SequenceMatcher
-
-    def ai_correct_name(name, reference_list):
-        """
-        Corrects a name based on fuzzy similarity to reference list.
-        Returns (best_match, confidence_score)
-        """
-        if not isinstance(name, str) or not name.strip():
-            return name, 0.0
-
-        name_clean = name.strip().title()
-        best_match = name_clean
-        best_score = 0.0
-
-        for ref in reference_list:
-            score = SequenceMatcher(None, name_clean.lower(), ref.lower()).ratio()
-            if score > best_score:
-                best_match = ref
-                best_score = score
-
-        # Only correct if we're confident enough (threshold = 0.8)
-        if best_score < 0.8:
-            return name_clean, best_score
-        return best_match, best_score
-
-    # Encode input and references into embeddings
-    emb_name = model.encode(name, convert_to_tensor=True)
-    emb_refs = model.encode(reference_list, convert_to_tensor=True)
-
-    # Compute cosine similarity
-    similarities = util.pytorch_cos_sim(emb_name, emb_refs)[0]
-    best_idx = torch.argmax(similarities).item()
-    best_score = similarities[best_idx].item()
-
-    # Return best match if similarity is strong enough
-    if best_score >= threshold:
-        return reference_list[best_idx]
-    return name
-
-
-# ============================
-# 🧠 COMBINED TEST (optional)
-# ============================
-
-if __name__ == "__main__":
-    countries = get_all_countries()
-    cities = get_all_cities()
-    companies = get_sample_companies()
-
-    print(f"✅ Loaded {len(countries)} countries")
-    print(f"✅ Loaded {len(cities)} cities")
-    print(f"✅ Loaded {len(companies)} companies")
-
-    # Save as CSVs (optional, useful for offline reference)
-    pd.DataFrame(countries, columns=["Country"]).to_csv("countries.csv", index=False)
-    pd.DataFrame(cities, columns=["City"]).to_csv("cities.csv", index=False)
-    pd.DataFrame(companies, columns=["Company"]).to_csv("companies.csv", index=False)
-
-    # Test the AI correction engine
-    print("\n🔍 AI Name Correction Tests:")
-    print("Inda ➜", ai_correct_name("Inda", countries))
-    print("Garmany ➜", ai_correct_name("Garmany", countries))
-    print("Unted Sttes ➜", ai_correct_name("Unted Sttes", countries))
-    print("Nwe Yrok ➜", ai_correct_name("Nwe Yrok", cities))
-    print("Microsfot ➜", ai_correct_name("Microsfot", companies))
-
-
+    if best_score > threshold:
+        return ref_list[best_idx], best_score
+    else:
+        return name, best_score
