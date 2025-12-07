@@ -1,6 +1,25 @@
 # ai_services.py
-import pkg_resources
+try:
+    import pkg_resources
+except ImportError:
+    pkg_resources = None
+
 from symspellpy import SymSpell, Verbosity
+import os
+
+# Load SymSpell model safely
+sym_spell = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
+
+# Try to find dictionary path (fallback if pkg_resources missing)
+if pkg_resources:
+    dictionary_path = pkg_resources.resource_filename("symspellpy", "frequency_dictionary_en_82_765.txt")
+else:
+    import symspellpy
+    base_dir = os.path.dirname(symspellpy.__file__)
+    dictionary_path = os.path.join(base_dir, "frequency_dictionary_en_82_765.txt")
+
+sym_spell.load_dictionary(dictionary_path, term_index=0, count_index=1)
+
 
 # Load the SymSpell model
 sym_spell = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
