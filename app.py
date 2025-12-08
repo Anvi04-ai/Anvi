@@ -1,21 +1,17 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
+from ai_correction_engine import correct_entity
 
-# 🧠 Import helper functions from data_sources.py
-from data_sources import (
-    get_all_countries,
-    get_all_cities,
-    get_sample_companies,
-    ai_correct_name
-)
-
-# ----------------- 🌟 Streamlit UI -----------------
+# 🎨 Page setup
 st.set_page_config(page_title="CleanChain AI", page_icon="✨")
 st.title("✨ CleanChain AI — Smart Global Data Cleaner")
 
-# Upload section
-uploaded_file = st.file_uploader("📤 Upload your data (CSV or Excel)", type=["csv", "xlsx", "xls"])
+# 📤 File upload
+uploaded_file = st.file_uploader(
+    "📤 Upload your data (CSV or Excel)",
+    type=["csv", "xlsx", "xls"]
+)
 
 if uploaded_file:
     # Detect file type automatically
@@ -29,70 +25,63 @@ if uploaded_file:
     st.dataframe(df.head())
 
     if st.button("✨ Clean and Correct My Data"):
-        with st.spinner("Cleaning and AI-correcting your data..."):
-            # 🧼 Step 1: Basic cleaning
+        with st.spinner("AI is cleaning and correcting your data... ⏳"):
+
+            # 1️⃣ Basic text cleanup
             df.columns = df.columns.str.lower().str.strip()
             df = df.applymap(lambda x: x.strip().title() if isinstance(x, str) else x)
             df = df.drop_duplicates()
 
-            # 🧠 Step 2: Load reference data
-            countries = get_all_countries()
-            cities = get_all_cities()
-            companies = get_sample_companies()
-
+            # 2️⃣ AI-powered correction
             correction_log = []
 
-            # 🧠 Step 3: Define correction function
-            def correct_with_log(x, ref_list, col_name):
-                if not isinstance(x, str) or not x.strip():
-                    return x
-                corrected, confidence = ai_correct_name(x, ref_list)
-                if corrected != x:
+            def correct_with_log(value, entity_type):
+                if not isinstance(value, str) or not value.strip():
+                    return value
+                corrected, confidence = correct_entity(value, entity_type)
+                if corrected != value:
                     correction_log.append({
-                        "Column": col_name,
-                        "Original": x,
+                        "Type": entity_type.title(),
+                        "Original": value,
                         "Corrected": corrected,
                         "Confidence": round(confidence * 100, 2)
                     })
                 return corrected
 
-            # Apply AI correction where relevant
+            # Apply AI correction based on column names
             if "country" in df.columns:
-                df["country"] = df["country"].apply(lambda x: correct_with_log(x, countries, "Country"))
-            if "city" in df.columns:
-                df["city"] = df["city"].apply(lambda x: correct_with_log(x, cities, "City"))
-            if "company" in df.columns:
-                df["company"] = df["company"].apply(lambda x: correct_with_log(x, companies, "Company"))
+                df["country"] = df["country"].apply(lambda x: correct_with_log(x, "country"))
 
-            # ✅ Step 4: Display results
+            if "city" in df.columns:
+                df["city"] = df["city"].apply(lambda x: correct_with_log(x, "city"))
+
+            if "name" in df.columns:
+                df["name"] = df["name"].apply(lambda x: correct_with_log(x, "name"))
+
             st.success("✅ Data cleaned and AI-corrected successfully!")
 
             st.write("### 🧼 Cleaned Data Preview")
             st.dataframe(df.head())
 
+            # Show corrections log
             if correction_log:
-                st.write("### 🤖 Corrections Applied")
+                st.write("### 🤖 AI Corrections Applied")
                 corrections_df = pd.DataFrame(correction_log)
-                st.dataframe(corrections_df.style.background_gradient(
-                    subset=["Confidence"], cmap="YlGn"
-                ))
+                st.dataframe(corrections_df)
             else:
-                st.info("No AI corrections were required — all names already valid!")
+                st.info("No major corrections needed — your data was already clean!")
 
-            # 💾 Step 5: Download buttons
-            csv = df.to_csv(index=False).encode("utf-8")
-            buffer = BytesIO()
-            with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+            # 3️⃣ Download options
+            csv_data = df.to_csv(index=False).encode("utf-8")
+            excel_buffer = BytesIO()
+            with pd.ExcelWriter(excel_buffer, engine="xlsxwriter") as writer:
                 df.to_excel(writer, index=False, sheet_name="CleanedData")
-            excel_data = buffer.getvalue()
+            excel_data = excel_buffer.getvalue()
 
             col1, col2 = st.columns(2)
             with col1:
-                st.download_button("⬇️ Download Cleaned CSV", csv, "cleaned_data.csv", "text/csv")
+                st.download_button("⬇️ Download CSV", csv_data, "cleaned_data.csv", "text/csv")
             with col2:
-                st.download_button(
-                    "📊 Download Cleaned Excel",
-                    excel_data,
-                    "cleaned_data.xlsx",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+                st.download_button("📊 Download Excel", excel_data,
+                                   "cleaned_data.xlsx",
+                                   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
