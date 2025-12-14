@@ -60,7 +60,7 @@ st.markdown("""
 
 # ==================== 🌍 HEADER ====================
 st.title("✨ CleanChain AI — Fast Global Data Cleaner")
-st.caption("🚀 Clean, correct & format your data instantly using AI")
+st.caption("🚀 Instantly clean, correct & format your data using AI")
 
 # ==================== 📤 FILE UPLOAD ====================
 uploaded_file = st.file_uploader(
@@ -77,61 +77,44 @@ if uploaded_file:
 
     if st.button("✨ Clean and Correct My Data"):
         progress = st.progress(0)
-        with st.spinner("AI is cleaning and correcting your data... ⏳"):
+        with st.spinner("AI is cleaning your data... ⏳"):
 
             # Step 1️⃣ Basic Cleanup
-            progress.progress(20)
+            progress.progress(25)
             df.columns = df.columns.str.lower().str.strip()
             df = df.applymap(lambda x: x.strip().title() if isinstance(x, str) else x)
             df = df.drop_duplicates()
 
             # Step 2️⃣ AI-Powered Correction (cached for speed)
-            correction_log = []
+            progress.progress(60)
             correction_cache = {}
 
-            def correct_with_log(value, entity_type):
+            def correct_fast(value, entity_type):
                 if not isinstance(value, str) or not value.strip():
                     return value
                 key = (entity_type, value.lower().strip())
                 if key in correction_cache:
                     return correction_cache[key]
-                corrected, confidence = correct_entity(value, entity_type)
+                corrected, _ = correct_entity(value, entity_type)
                 correction_cache[key] = corrected
-                if corrected != value:
-                    correction_log.append({
-                        "Type": entity_type.title(),
-                        "Original": value,
-                        "Corrected": corrected,
-                        "Confidence": round(confidence * 100, 2)
-                    })
                 return corrected
 
-            progress.progress(50)
-
-            # Step 3️⃣ Apply Corrections
             for col_name, entity_type in [("country", "country"), ("city", "city"), ("name", "name")]:
                 if col_name in df.columns:
                     unique_values = df[col_name].unique()
-                    mapping = {v: correct_with_log(v, entity_type) for v in unique_values}
+                    mapping = {v: correct_fast(v, entity_type) for v in unique_values}
                     df[col_name] = df[col_name].map(mapping)
 
-            progress.progress(80)
+            progress.progress(90)
 
-            # Step 4️⃣ Display Results
+            # Step 3️⃣ Display Results
             st.success("✅ Data cleaned and AI-corrected successfully!")
             st.balloons()
 
             st.write("### 🧼 Cleaned Data Preview")
             st.dataframe(df.head(), use_container_width=True)
 
-            # Step 5️⃣ Show Corrections Log
-            if correction_log:
-                st.write("### 🤖 AI Corrections Applied")
-                st.dataframe(pd.DataFrame(correction_log), use_container_width=True)
-            else:
-                st.info("No major corrections were needed — your data looks great!")
-
-            # Step 6️⃣ Download Options
+            # Step 4️⃣ Download Options
             progress.progress(100)
             csv_data = df.to_csv(index=False).encode("utf-8")
             excel_buffer = BytesIO()
@@ -149,4 +132,3 @@ if uploaded_file:
                     "cleaned_data.xlsx",
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
-
