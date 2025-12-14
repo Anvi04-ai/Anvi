@@ -2,63 +2,101 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 from ai_correction_engine import correct_entity
-from global_cleaning import (
-    detect_and_translate,
-    normalize_time,
-    convert_to_usd,
+
+# ==================== 🌟 PAGE CONFIG ====================
+st.set_page_config(
+    page_title="CleanChain AI",
+    page_icon="✨",
+    layout="wide",
 )
 
-# 🎨 Page setup
-st.set_page_config(page_title="CleanChain AI", page_icon="✨")
-st.title("✨ CleanChain AI — Smart Global Data Cleaner")
+# ==================== 🎨 CUSTOM STYLES ====================
+st.markdown("""
+    <style>
+    body {
+        background-color: #f8f9fa;
+        color: #212529;
+    }
+    .main {
+        background-color: #ffffff;
+        border-radius: 12px;
+        padding: 25px 40px;
+        box-shadow: 0px 4px 20px rgba(0,0,0,0.05);
+    }
+    h1 {
+        color: #5c4dff;
+        text-align: center;
+        font-family: 'Poppins', sans-serif;
+        font-weight: 700;
+    }
+    .stButton button {
+        background: linear-gradient(90deg, #6a11cb, #2575fc);
+        color: white;
+        font-weight: 600;
+        border: none;
+        border-radius: 8px;
+        padding: 0.6rem 1.2rem;
+        transition: all 0.3s ease-in-out;
+    }
+    .stButton button:hover {
+        transform: scale(1.05);
+        background: linear-gradient(90deg, #2575fc, #6a11cb);
+    }
+    .stDownloadButton button {
+        background: linear-gradient(90deg, #43cea2, #185a9d);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        padding: 0.5rem 1rem;
+        font-weight: 600;
+        transition: 0.3s;
+    }
+    .stDownloadButton button:hover {
+        transform: scale(1.03);
+        background: linear-gradient(90deg, #185a9d, #43cea2);
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-# 📤 File upload
+# ==================== 🌍 HEADER ====================
+st.title("✨ CleanChain AI — Fast Global Data Cleaner")
+st.caption("🚀 Clean, correct & format your data instantly using AI")
+
+# ==================== 📤 FILE UPLOAD ====================
 uploaded_file = st.file_uploader(
     "📤 Upload your data (CSV or Excel)",
     type=["csv", "xlsx", "xls"]
 )
 
 if uploaded_file:
-    # Detect file type automatically
     file_name = uploaded_file.name.lower()
-    if file_name.endswith(".csv"):
-        df = pd.read_csv(uploaded_file)
-    else:
-        df = pd.read_excel(uploaded_file)
+    df = pd.read_csv(uploaded_file) if file_name.endswith(".csv") else pd.read_excel(uploaded_file)
 
-    st.write("### 🧾 Original Data")
-    st.dataframe(df.head())
-
-    # 🌍 Global Cleaning Options
-    st.write("### 🌍 Global Cleaning Options")
-    apply_translation = st.checkbox("🌐 Detect language & translate to English", value=True)
-    apply_currency = st.checkbox("💱 Convert all amounts to USD (if currency column exists)", value=False)
-    apply_timezone = st.checkbox("🕒 Normalize time columns to UTC", value=False)
-    fast_mode = st.checkbox("⚡ Fast Mode (Skip slow AI translations & repeated corrections)", value=True)
+    st.write("### 🧾 Original Data Preview")
+    st.dataframe(df.head(), use_container_width=True)
 
     if st.button("✨ Clean and Correct My Data"):
+        progress = st.progress(0)
         with st.spinner("AI is cleaning and correcting your data... ⏳"):
 
-            # 🧹 1️⃣ Basic text cleanup
+            # Step 1️⃣ Basic Cleanup
+            progress.progress(20)
             df.columns = df.columns.str.lower().str.strip()
             df = df.applymap(lambda x: x.strip().title() if isinstance(x, str) else x)
             df = df.drop_duplicates()
 
-            # 🧠 2️⃣ AI-powered correction (cached)
+            # Step 2️⃣ AI-Powered Correction (cached for speed)
             correction_log = []
             correction_cache = {}
 
             def correct_with_log(value, entity_type):
                 if not isinstance(value, str) or not value.strip():
                     return value
-
                 key = (entity_type, value.lower().strip())
                 if key in correction_cache:
                     return correction_cache[key]
-
                 corrected, confidence = correct_entity(value, entity_type)
                 correction_cache[key] = corrected
-
                 if corrected != value:
                     correction_log.append({
                         "Type": entity_type.title(),
@@ -68,57 +106,33 @@ if uploaded_file:
                     })
                 return corrected
 
-            # Apply AI correction (only once per unique)
+            progress.progress(50)
+
+            # Step 3️⃣ Apply Corrections
             for col_name, entity_type in [("country", "country"), ("city", "city"), ("name", "name")]:
                 if col_name in df.columns:
                     unique_values = df[col_name].unique()
                     mapping = {v: correct_with_log(v, entity_type) for v in unique_values}
                     df[col_name] = df[col_name].map(mapping)
 
-            # 🌐 3️⃣ Global cleaning with caching
-            if apply_translation and not fast_mode:
-                st.info("Translating non-English text to English (may take longer)...")
-                translation_cache = {}
+            progress.progress(80)
 
-                def cached_translate(text):
-                    if not isinstance(text, str) or not text.strip():
-                        return text
-                    if text in translation_cache:
-                        return translation_cache[text]
-                    translated = detect_and_translate(text)
-                    translation_cache[text] = translated
-                    return translated
-
-                df = df.applymap(cached_translate)
-            elif apply_translation:
-                st.info("⚡ Fast mode enabled — skipping translation for faster performance")
-
-            # 💱 Currency conversion
-            if apply_currency and "amount" in df.columns and "currency" in df.columns:
-                df["amount_usd"] = df.apply(
-                    lambda x: convert_to_usd(x["amount"], x["currency"]), axis=1
-                )
-
-            # 🕒 Time normalization
-            if apply_timezone:
-                datetime_cols = df.select_dtypes(include=["datetime64[ns]"]).columns
-                for col in datetime_cols:
-                    df[col] = df[col].apply(normalize_time)
-
+            # Step 4️⃣ Display Results
             st.success("✅ Data cleaned and AI-corrected successfully!")
+            st.balloons()
 
-            # 🧼 4️⃣ Display results
             st.write("### 🧼 Cleaned Data Preview")
-            st.dataframe(df.head())
+            st.dataframe(df.head(), use_container_width=True)
 
+            # Step 5️⃣ Show Corrections Log
             if correction_log:
                 st.write("### 🤖 AI Corrections Applied")
-                corrections_df = pd.DataFrame(correction_log)
-                st.dataframe(corrections_df)
+                st.dataframe(pd.DataFrame(correction_log), use_container_width=True)
             else:
-                st.info("No major corrections detected — your data was already clean!")
+                st.info("No major corrections were needed — your data looks great!")
 
-            # 💾 5️⃣ Download options
+            # Step 6️⃣ Download Options
+            progress.progress(100)
             csv_data = df.to_csv(index=False).encode("utf-8")
             excel_buffer = BytesIO()
             with pd.ExcelWriter(excel_buffer, engine="xlsxwriter") as writer:
@@ -135,3 +149,4 @@ if uploaded_file:
                     "cleaned_data.xlsx",
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
+
