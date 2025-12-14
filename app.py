@@ -3,6 +3,14 @@ import pandas as pd
 from io import BytesIO
 from ai_correction_engine import correct_entity
 
+# 🌍 Global Cleaning Tools
+from global_cleaning import (
+    detect_and_translate,
+    normalize_time,
+    convert_to_usd,
+    # standardize_address  # optional, enable later
+)
+
 # 🎨 Page setup
 st.set_page_config(page_title="CleanChain AI", page_icon="✨")
 st.title("✨ CleanChain AI — Smart Global Data Cleaner")
@@ -23,6 +31,12 @@ if uploaded_file:
 
     st.write("### 🧾 Original Data")
     st.dataframe(df.head())
+
+    # 🌐 Optional global cleaning options
+    st.write("### 🌍 Global Cleaning Options")
+    apply_translation = st.checkbox("🌐 Detect language & translate to English", value=True)
+    apply_currency = st.checkbox("💱 Convert all amounts to USD (if currency column exists)", value=False)
+    apply_timezone = st.checkbox("🕒 Normalize time columns to UTC", value=False)
 
     if st.button("✨ Clean and Correct My Data"):
         with st.spinner("AI is cleaning and correcting your data... ⏳"):
@@ -58,12 +72,27 @@ if uploaded_file:
             if "name" in df.columns:
                 df["name"] = df["name"].apply(lambda x: correct_with_log(x, "name"))
 
-            st.success("✅ Data cleaned and AI-corrected successfully!")
+            # 3️⃣ Apply global cleaning options
+            if apply_translation:
+                df = df.applymap(detect_and_translate)
+
+            if apply_currency and "amount" in df.columns and "currency" in df.columns:
+                df["amount_usd"] = df.apply(
+                    lambda x: convert_to_usd(x["amount"], x["currency"]), axis=1
+                )
+
+            if apply_timezone:
+                # Auto-detect any datetime columns
+                datetime_cols = df.select_dtypes(include=["datetime64[ns]"]).columns
+                for col in datetime_cols:
+                    df[col] = df[col].apply(normalize_time)
+
+            st.success("✅ Data cleaned, translated, and AI-corrected successfully!")
 
             st.write("### 🧼 Cleaned Data Preview")
             st.dataframe(df.head())
 
-            # Show corrections log
+            # 🧠 Show AI corrections log
             if correction_log:
                 st.write("### 🤖 AI Corrections Applied")
                 corrections_df = pd.DataFrame(correction_log)
@@ -71,7 +100,7 @@ if uploaded_file:
             else:
                 st.info("No major corrections needed — your data was already clean!")
 
-            # 3️⃣ Download options
+            # 4️⃣ Download options
             csv_data = df.to_csv(index=False).encode("utf-8")
             excel_buffer = BytesIO()
             with pd.ExcelWriter(excel_buffer, engine="xlsxwriter") as writer:
@@ -82,6 +111,9 @@ if uploaded_file:
             with col1:
                 st.download_button("⬇️ Download CSV", csv_data, "cleaned_data.csv", "text/csv")
             with col2:
-                st.download_button("📊 Download Excel", excel_data,
-                                   "cleaned_data.xlsx",
-                                   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                st.download_button(
+                    "📊 Download Excel",
+                    excel_data,
+                    "cleaned_data.xlsx",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
