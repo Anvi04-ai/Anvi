@@ -2,13 +2,10 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 from ai_correction_engine import correct_entity
-
-# 🌍 Global Cleaning Tools
 from global_cleaning import (
     detect_and_translate,
     normalize_time,
     convert_to_usd,
-    # standardize_address  # optional, enable later
 )
 
 # 🎨 Page setup
@@ -32,27 +29,36 @@ if uploaded_file:
     st.write("### 🧾 Original Data")
     st.dataframe(df.head())
 
-    # 🌐 Optional global cleaning options
+    # 🌍 Global Cleaning Options
     st.write("### 🌍 Global Cleaning Options")
     apply_translation = st.checkbox("🌐 Detect language & translate to English", value=True)
     apply_currency = st.checkbox("💱 Convert all amounts to USD (if currency column exists)", value=False)
     apply_timezone = st.checkbox("🕒 Normalize time columns to UTC", value=False)
+    fast_mode = st.checkbox("⚡ Fast Mode (Skip slow AI translations & repeated corrections)", value=True)
 
     if st.button("✨ Clean and Correct My Data"):
         with st.spinner("AI is cleaning and correcting your data... ⏳"):
 
-            # 1️⃣ Basic text cleanup
+            # 🧹 1️⃣ Basic text cleanup
             df.columns = df.columns.str.lower().str.strip()
             df = df.applymap(lambda x: x.strip().title() if isinstance(x, str) else x)
             df = df.drop_duplicates()
 
-            # 2️⃣ AI-powered correction
+            # 🧠 2️⃣ AI-powered correction (cached)
             correction_log = []
+            correction_cache = {}
 
             def correct_with_log(value, entity_type):
                 if not isinstance(value, str) or not value.strip():
                     return value
+
+                key = (entity_type, value.lower().strip())
+                if key in correction_cache:
+                    return correction_cache[key]
+
                 corrected, confidence = correct_entity(value, entity_type)
+                correction_cache[key] = corrected
+
                 if corrected != value:
                     correction_log.append({
                         "Type": entity_type.title(),
@@ -62,45 +68,57 @@ if uploaded_file:
                     })
                 return corrected
 
-            # Apply AI correction based on column names
-            if "country" in df.columns:
-                df["country"] = df["country"].apply(lambda x: correct_with_log(x, "country"))
+            # Apply AI correction (only once per unique)
+            for col_name, entity_type in [("country", "country"), ("city", "city"), ("name", "name")]:
+                if col_name in df.columns:
+                    unique_values = df[col_name].unique()
+                    mapping = {v: correct_with_log(v, entity_type) for v in unique_values}
+                    df[col_name] = df[col_name].map(mapping)
 
-            if "city" in df.columns:
-                df["city"] = df["city"].apply(lambda x: correct_with_log(x, "city"))
+            # 🌐 3️⃣ Global cleaning with caching
+            if apply_translation and not fast_mode:
+                st.info("Translating non-English text to English (may take longer)...")
+                translation_cache = {}
 
-            if "name" in df.columns:
-                df["name"] = df["name"].apply(lambda x: correct_with_log(x, "name"))
+                def cached_translate(text):
+                    if not isinstance(text, str) or not text.strip():
+                        return text
+                    if text in translation_cache:
+                        return translation_cache[text]
+                    translated = detect_and_translate(text)
+                    translation_cache[text] = translated
+                    return translated
 
-            # 3️⃣ Apply global cleaning options
-            if apply_translation:
-                df = df.applymap(detect_and_translate)
+                df = df.applymap(cached_translate)
+            elif apply_translation:
+                st.info("⚡ Fast mode enabled — skipping translation for faster performance")
 
+            # 💱 Currency conversion
             if apply_currency and "amount" in df.columns and "currency" in df.columns:
                 df["amount_usd"] = df.apply(
                     lambda x: convert_to_usd(x["amount"], x["currency"]), axis=1
                 )
 
+            # 🕒 Time normalization
             if apply_timezone:
-                # Auto-detect any datetime columns
                 datetime_cols = df.select_dtypes(include=["datetime64[ns]"]).columns
                 for col in datetime_cols:
                     df[col] = df[col].apply(normalize_time)
 
-            st.success("✅ Data cleaned, translated, and AI-corrected successfully!")
+            st.success("✅ Data cleaned and AI-corrected successfully!")
 
+            # 🧼 4️⃣ Display results
             st.write("### 🧼 Cleaned Data Preview")
             st.dataframe(df.head())
 
-            # 🧠 Show AI corrections log
             if correction_log:
                 st.write("### 🤖 AI Corrections Applied")
                 corrections_df = pd.DataFrame(correction_log)
                 st.dataframe(corrections_df)
             else:
-                st.info("No major corrections needed — your data was already clean!")
+                st.info("No major corrections detected — your data was already clean!")
 
-            # 4️⃣ Download options
+            # 💾 5️⃣ Download options
             csv_data = df.to_csv(index=False).encode("utf-8")
             excel_buffer = BytesIO()
             with pd.ExcelWriter(excel_buffer, engine="xlsxwriter") as writer:
