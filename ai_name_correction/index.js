@@ -1,27 +1,32 @@
+// src/index.js
 export default {
   async fetch(request) {
     const url = new URL(request.url);
 
-    if (url.pathname === "/clean") {
-      try {
-        const { name } = await request.json();
+    if (url.pathname === "/correct") {
+      const { name, type } = await request.json();
 
-        // 🧠 Simple cleaning logic
-        const cleanedName = name
-          .trim()
-          .replace(/\s+/g, " ")
-          .replace(/[0-9!@#$%^&*(),.?":{}|<>]/g, "")
-          .toLowerCase()
-          .replace(/\b\w/g, c => c.toUpperCase());
+      // Basic rule-based + AI-like correction simulation
+      const corrections = {
+        country: { "imndfia": "India", "untied states": "United States" },
+        city: { "punee": "Pune", "nyork": "New York" },
+        name: { "johhn": "John", "kali": "Kylie" }
+      };
 
-        return new Response(JSON.stringify({ cleaned_name: cleanedName }), {
-          headers: { "Content-Type": "application/json" },
-        });
-      } catch (err) {
-        return new Response("Invalid Request", { status: 400 });
-      }
+      const fixList = corrections[type?.toLowerCase()] || {};
+      const corrected =
+        fixList[name?.toLowerCase()] || name;
+
+      return Response.json({
+        original: name,
+        corrected,
+        type,
+        confidence: corrected === name ? 0.85 : 0.99
+      });
     }
 
-    return new Response("✅ Name Correction API is Running!", { status: 200 });
+    return new Response("AI Correction API running ✅", {
+      headers: { "content-type": "text/plain" },
+    });
   },
 };
