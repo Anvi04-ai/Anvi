@@ -1,32 +1,32 @@
-// src/index.js
 export default {
   async fetch(request) {
     const url = new URL(request.url);
 
-    if (url.pathname === "/correct") {
-      const { name, type } = await request.json();
+    // Handle POST requests to /clean
+    if (url.pathname === "/clean" && request.method === "POST") {
+      try {
+        const { name } = await request.json();
 
-      // Basic rule-based + AI-like correction simulation
-      const corrections = {
-        country: { "imndfia": "India", "untied states": "United States" },
-        city: { "punee": "Pune", "nyork": "New York" },
-        name: { "johhn": "John", "kali": "Kylie" }
-      };
+        // Simple cleaning logic
+        const cleanedName = name
+          .trim()
+          .replace(/[^a-zA-Z\s]/g, "") // remove numbers/symbols
+          .replace(/\s+/g, " ") // fix spacing
+          .toLowerCase()
+          .replace(/\b\w/g, (c) => c.toUpperCase()); // capitalize each word
 
-      const fixList = corrections[type?.toLowerCase()] || {};
-      const corrected =
-        fixList[name?.toLowerCase()] || name;
-
-      return Response.json({
-        original: name,
-        corrected,
-        type,
-        confidence: corrected === name ? 0.85 : 0.99
-      });
+        return new Response(JSON.stringify({ cleaned_name: cleanedName }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (err) {
+        return new Response(
+          JSON.stringify({ error: "Invalid request format" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
     }
 
-    return new Response("AI Correction API running ✅", {
-      headers: { "content-type": "text/plain" },
-    });
+    // Default route
+    return new Response("Not found", { status: 404 });
   },
 };
