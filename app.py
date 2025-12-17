@@ -1,32 +1,31 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
-import requests
+from openai import OpenAI
 
-# ==================== ☁️ CLOUDFLARE AI CLEANER ====================
-CLOUDFLARE_API = "https://ai-name-corrector.anvi-ai.workers.dev/"  # 🔁 Replace YOUR-NAME
+# ==================== 🔑 OPENAI SETUP ====================
+# Make sure you already set your API key in your system:
+# setx OPENAI_API_KEY "sk-XXXX..."
+client = OpenAI()  # Automatically picks up your environment variable
 
-def correct_entity_cloudflare(name: str):
+# ==================== ⚙️ FUNCTION: OpenAI Name Corrector ====================
+def correct_entity_openai(name: str):
     """
-    Sends the name to your Cloudflare Worker for cleaning/correction.
-    Falls back gracefully if the Worker is unreachable.
+    Uses OpenAI GPT model to correct or normalize names.
+    Example: 'johN smth' → 'John Smith'
     """
     if not isinstance(name, str) or not name.strip():
         return name
 
     try:
-        response = requests.post(
-            CLOUDFLARE_API,
-            json={"name": name},
-            timeout=8
+        response = client.responses.create(
+            model="gpt-5-mini",  # ✅ small + cost-efficient model
+            input=f"Correct the capitalization and spelling of this name, output only the corrected name: {name}"
         )
-        if response.status_code == 200:
-            data = response.json()
-            return data.get("cleaned_name", name)
+        return response.output_text.strip()
     except Exception as e:
-        print("⚠️ Cloudflare Worker error:", e)
-    return name  # fallback
-
+        print("⚠️ OpenAI API Error:", e)
+        return name
 
 # ==================== 🌟 PAGE CONFIG ====================
 st.set_page_config(
@@ -56,7 +55,7 @@ h1 {color: #5c4dff; text-align: center; font-family: 'Poppins', sans-serif; font
 
 # ==================== 🧠 HEADER ====================
 st.title("✨ CleanChain AI — Smart Data Cleaner")
-st.caption("🚀 Instantly clean, correct & format your data using Cloudflare AI")
+st.caption("🚀 Instantly clean, correct & format your data using OpenAI GPT")
 
 # ==================== 📤 FILE UPLOAD ====================
 uploaded_file = st.file_uploader("📤 Upload CSV or Excel file", type=["csv", "xlsx", "xls"])
@@ -78,7 +77,7 @@ if uploaded_file:
             df = df.applymap(lambda x: x.strip().title() if isinstance(x, str) else x)
             df = df.drop_duplicates()
 
-            # Step 2️⃣ AI Correction via Cloudflare Worker
+            # Step 2️⃣ AI Correction via OpenAI
             progress.progress(60)
             if "name" in df.columns:
                 cache = {}
@@ -86,7 +85,7 @@ if uploaded_file:
                     n_stripped = n.strip().lower()
                     if n_stripped in cache:
                         return cache[n_stripped]
-                    cleaned = correct_entity_cloudflare(n)
+                    cleaned = correct_entity_openai(n)
                     cache[n_stripped] = cleaned
                     return cleaned
 
