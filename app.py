@@ -3,38 +3,46 @@ import pandas as pd
 from io import BytesIO
 from openai import OpenAI
 
-# ==================== 🔑 OPENAI SETUP ====================
-# Make sure you already set your API key in your system:
-# setx OPENAI_API_KEY "sk-XXXX..."
-client = OpenAI()  # Automatically picks up your environment variable
+# ==================== 🧠 OpenAI Setup ====================
+client = OpenAI()
 
-# ==================== ⚙️ FUNCTION: OpenAI Name Corrector ====================
-def correct_entity_openai(name: str):
-    """
-    Uses OpenAI GPT model to correct or normalize names.
-    Example: 'johN smth' → 'John Smith'
-    """
-    if not isinstance(name, str) or not name.strip():
-        return name
-
+def correct_entity_openai(value: str, column_name: str = ""):
+    """Use GPT to correct names, cities, or countries intelligently."""
+    if not isinstance(value, str) or not value.strip():
+        return value
     try:
-        response = client.responses.create(
-            model="gpt-5-mini",  # ✅ small + cost-efficient model
-            input=f"Correct the capitalization and spelling of this name, output only the corrected name: {name}"
-        )
-        return response.output_text.strip()
-    except Exception as e:
-        print("⚠️ OpenAI API Error:", e)
-        return name
+        prompt = f"""
+You are a data cleaner AI. Correct any spelling mistakes, spacing issues, or capitalization in this {column_name} value.
+Return only the corrected text. Do not add explanations or extra words.
 
-# ==================== 🌟 PAGE CONFIG ====================
+Examples:
+Input: Imndfia → Output: India
+Input: mahendrasingh → Output: Mahendra Singh
+Input: pune → Output: Pune
+
+Now correct this:
+"{value}"
+"""
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",  # use "gpt-3.5-turbo" for cheaper option
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=20,
+            temperature=0
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print("⚠️ OpenAI error:", e)
+        return value
+
+
+# ==================== 🌟 Streamlit Page Config ====================
 st.set_page_config(
     page_title="CleanChain AI",
     page_icon="✨",
     layout="wide",
 )
 
-# ==================== 🎨 STYLES ====================
+# ==================== 🎨 Styles ====================
 st.markdown("""
 <style>
 body {background-color: #f8f9fa; color: #212529;}
@@ -53,11 +61,11 @@ h1 {color: #5c4dff; text-align: center; font-family: 'Poppins', sans-serif; font
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== 🧠 HEADER ====================
+# ==================== 🧾 App Header ====================
 st.title("✨ CleanChain AI — Smart Data Cleaner")
 st.caption("🚀 Instantly clean, correct & format your data using OpenAI GPT")
 
-# ==================== 📤 FILE UPLOAD ====================
+# ==================== 📤 File Upload ====================
 uploaded_file = st.file_uploader("📤 Upload CSV or Excel file", type=["csv", "xlsx", "xls"])
 
 if uploaded_file:
@@ -77,19 +85,19 @@ if uploaded_file:
             df = df.applymap(lambda x: x.strip().title() if isinstance(x, str) else x)
             df = df.drop_duplicates()
 
-            # Step 2️⃣ AI Correction via OpenAI
+            # Step 2️⃣ AI Correction across all text columns
             progress.progress(60)
-            if "name" in df.columns:
-                cache = {}
-                def correct_name(n):
-                    n_stripped = n.strip().lower()
-                    if n_stripped in cache:
-                        return cache[n_stripped]
-                    cleaned = correct_entity_openai(n)
-                    cache[n_stripped] = cleaned
-                    return cleaned
+            cache = {}
+            text_columns = df.select_dtypes(include=["object"]).columns
 
-                df["name"] = df["name"].apply(correct_name)
+            for col in text_columns:
+                st.write(f"🧹 Cleaning column: {col}")
+                df[col] = df[col].apply(
+                    lambda x: cache.setdefault(
+                        (col, str(x).strip().lower()),
+                        correct_entity_openai(x, col)
+                    )
+                )
 
             # Step 3️⃣ Finalize
             progress.progress(90)
